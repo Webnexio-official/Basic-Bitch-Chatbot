@@ -11,31 +11,25 @@ from pydantic import BaseModel
 from supabase import create_client
 
 # =========================
-# CONFIG (FROM RENDER ENV)
+# CONFIG (RENDER ENV ONLY)
 # =========================
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-LLM_API_KEY = os.getenv("LLM_API_KEY")
-LLM_ENDPOINT = os.getenv(
+# IMPORTANT: DO NOT use dotenv on Render
+
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
+LLM_API_KEY = os.environ["LLM_API_KEY"]
+
+LLM_ENDPOINT = os.environ.get(
     "LLM_ENDPOINT",
-    "https://openrouter.ai/api/v1/chat/completions"
+    "https://openrouter.ai/api/v1/chat/completions",
 )
-LLM_MODEL = os.getenv(
+
+LLM_MODEL = os.environ.get(
     "LLM_MODEL",
-    "meta-llama/llama-3-8b-instruct"
+    "meta-llama/llama-3-8b-instruct",
 )
 
-# =========================
-# FAIL FAST (VERY IMPORTANT)
-# =========================
-if not SUPABASE_URL:
-    raise RuntimeError("❌ SUPABASE_URL missing")
-if not SUPABASE_ANON_KEY:
-    raise RuntimeError("❌ SUPABASE_ANON_KEY missing")
-if not LLM_API_KEY:
-    raise RuntimeError("❌ LLM_API_KEY missing")
-
-print("✅ Environment variables loaded")
+print("✅ Environment variables loaded correctly")
 
 # =========================
 # APP INIT
@@ -78,14 +72,14 @@ def to_message_list(rows: List[Dict]) -> List[Dict]:
 # =========================
 @app.post("/chat")
 def chat(data: ChatInput):
-    # Save user message
+    # 1. Save user message
     supabase.table("messages").insert({
         "session_id": data.session_id,
         "role": "user",
         "content": data.message
     }).execute()
 
-    # Fetch history
+    # 2. Fetch history
     res = (
         supabase.table("messages")
         .select("role, content")
@@ -103,6 +97,7 @@ def chat(data: ChatInput):
         + [{"role": "user", "content": data.message}]
     )
 
+    # 3. OpenRouter request
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
@@ -131,6 +126,7 @@ def chat(data: ChatInput):
 
     assistant_msg = llm_resp.json()["choices"][0]["message"]["content"]
 
+    # 4. Save assistant reply
     supabase.table("messages").insert({
         "session_id": data.session_id,
         "role": "assistant",
@@ -142,4 +138,7 @@ def chat(data: ChatInput):
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "Chatbot backend running"}
+    return {
+        "status": "ok",
+        "message": "Chatbot backend running"
+    }
