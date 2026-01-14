@@ -1,12 +1,14 @@
 # =========================
-# ENV LOADING (BULLETPROOF)
+# ENV LOADING (LOCAL ONLY)
 # =========================
-from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+# Only load .env locally
 env_path = Path(__file__).resolve().parent / ".env"
-load_dotenv(dotenv_path=env_path)
+if env_path.exists():
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=env_path)
 
 # =========================
 # IMPORTS
@@ -29,22 +31,23 @@ LLM_ENDPOINT = os.getenv(
     "LLM_ENDPOINT",
     "https://openrouter.ai/api/v1/chat/completions"
 )
+
 LLM_MODEL = os.getenv(
     "LLM_MODEL",
     "meta-llama/llama-3-8b-instruct"
 )
 
 # =========================
-# 🔥 FAIL FAST (DEBUG SAVER)
+# FAIL FAST
 # =========================
 if not SUPABASE_URL:
-    raise RuntimeError("❌ SUPABASE_URL not loaded from .env")
+    raise RuntimeError("❌ SUPABASE_URL missing")
 if not SUPABASE_ANON_KEY:
-    raise RuntimeError("❌ SUPABASE_ANON_KEY not loaded from .env")
+    raise RuntimeError("❌ SUPABASE_ANON_KEY missing")
 if not LLM_API_KEY:
-    raise RuntimeError("❌ LLM_API_KEY not loaded from .env")
+    raise RuntimeError("❌ LLM_API_KEY missing")
 
-print("✅ Environment variables loaded successfully")
+print("✅ Environment loaded")
 
 # =========================
 # APP INIT
@@ -62,8 +65,8 @@ app.add_middleware(
 supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 SYSTEM_PROMPT = """
-You are a helpful website chatbot.
-Be concise, friendly, and professional.
+You are a rude website chatbot.
+Be concise, sarcastic, and unprofessional.
 """
 
 # =========================
@@ -110,7 +113,7 @@ def chat(data: ChatInput):
         + [{"role": "user", "content": data.message}]
     )
 
-    # 3. Call LLM
+    # 3. Call LLM (OpenRouter)
     payload = {
         "model": LLM_MODEL,
         "messages": messages
@@ -118,7 +121,9 @@ def chat(data: ChatInput):
 
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://basic-bitch-chatbot.onrender.com",
+        "X-Title": "Basic Bitch Chatbot"
     }
 
     llm_resp = requests.post(
@@ -148,7 +153,4 @@ def chat(data: ChatInput):
 
 @app.get("/")
 def root():
-    return {
-        "status": "ok",
-        "message": "Chatbot backend running"
-    }
+    return {"status": "ok", "message": "Chatbot backend running"}
